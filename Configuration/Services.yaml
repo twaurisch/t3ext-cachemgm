@@ -8,9 +8,6 @@ services:
     resource: '../Classes/*'
 
   Aoe\Cachemgm\Controller\BackendModuleController:
-    arguments:
-      $moduleTemplateFactory: '@TYPO3\CMS\Backend\Template\ModuleTemplateFactory'
-      $cacheManager: '@TYPO3\CMS\Core\Cache\CacheManager'
     public: true
 
   Aoe\Cachemgm\EventListener\AvoidCacheLoading:

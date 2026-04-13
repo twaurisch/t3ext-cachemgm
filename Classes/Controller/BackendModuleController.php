@@ -38,29 +38,23 @@ use TYPO3\CMS\Core\Cache\CacheManager;
 use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Messaging\FlashMessage;
 use TYPO3\CMS\Core\Messaging\FlashMessageService;
-use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Extbase\Http\ForwardResponse;
 use TYPO3\CMS\Extbase\Mvc\Controller\ActionController;
 use TYPO3\CMS\Extbase\Mvc\Exception\NoSuchArgumentException;
-use TYPO3\CMS\Extbase\Mvc\Web\Routing\UriBuilder;
 
 class BackendModuleController extends ActionController
 {
-    /**
-     * BackendTemplateContainer
-     */
-    protected $view;
-
-    /**
-     * @var LanguageService
-     */
-    private $languageService;
-
     public function __construct(
-        public ModuleTemplateFactory $moduleTemplateFactory,
+        private readonly ModuleTemplateFactory $moduleTemplateFactory,
         private readonly CacheManager $cacheManager,
-    ) {
-        $this->languageService = $GLOBALS['LANG'];
+        private readonly CacheTableRepository $cacheTableRepository,
+        private readonly FlashMessageService $flashMessageService,
+    ) {}
+
+    private function getLanguageService(): LanguageService
+    {
+        return $GLOBALS['LANG'];
     }
 
     public function indexAction(): ResponseInterface
@@ -69,7 +63,7 @@ class BackendModuleController extends ActionController
 
         $moduleTemplate->assignMultiple([
             'cacheConfigurations' => $this->buildCacheConfigurationArray(),
-            'action_confirm_flush_message' => $this->languageService->sL(
+            'action_confirm_flush_message' => $this->getLanguageService()->sL(
                 'LLL:EXT:cachemgm/Resources/Private/BackendModule/Language/locallang.xlf:bemodule.action_confirm_flush'
             ),
         ]);
@@ -158,9 +152,7 @@ class BackendModuleController extends ActionController
      */
     private function getHref(string $controller, string $action, array $parameters = []): string
     {
-        $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
-        $uriBuilder->setRequest($this->request);
-        return $uriBuilder->reset()
+        return $this->uriBuilder->reset()
             ->uriFor($action, $parameters, $controller);
     }
 
@@ -195,7 +187,7 @@ class BackendModuleController extends ActionController
             $fileBackend = 'Cache Folder: ' . $backend->getCacheDirectory();
             if (!is_writable($backend->getCacheDirectory())) {
                 $fileBackend .= '&nbsp;<span class="badge badge-danger">' .
-                    $this->languageService->sL(
+                    $this->getLanguageService()->sL(
                         'LLL:EXT:cachemgm/Resources/Private/BackendModule/Language/locallang.xlf:bemodule.warning.not_writeable'
                     )
                     . '</span>';
@@ -210,53 +202,48 @@ class BackendModuleController extends ActionController
      */
     private function getCacheCount(BackendInterface $backend): array
     {
-        $cacheTableRepository = GeneralUtility::makeInstance(CacheTableRepository::class);
-
         $cacheCount = [];
         if ($backend instanceof Typo3DatabaseBackend) {
             $cacheCount['Cache Table'] = $backend->getCacheTable();
-            $cacheCount['Cache Entry Count'] = $cacheTableRepository->countRowsInTable($backend->getCacheTable());
+            $cacheCount['Cache Entry Count'] = $this->cacheTableRepository->countRowsInTable($backend->getCacheTable());
             $cacheCount['Cache Tags Table'] = $backend->getTagsTable();
-            $cacheCount['Cache Tags Entry Count'] = $cacheTableRepository->countRowsInTable($backend->getTagsTable());
+            $cacheCount['Cache Tags Entry Count'] = $this->cacheTableRepository->countRowsInTable($backend->getTagsTable());
         }
 
         return $cacheCount;
     }
 
-    private function getFlushCacheMessage(string $cacheId): object
+    private function getFlushCacheMessage(string $cacheId): FlashMessage
     {
-        return GeneralUtility::makeInstance(
-            FlashMessage::class,
+        return new FlashMessage(
             sprintf(
-                $this->languageService->sL(
+                $this->getLanguageService()->sL(
                     'LLL:EXT:cachemgm/Resources/Private/BackendModule/Language/locallang.xlf:bemodule.flash.flush.success'
                 ),
                 $cacheId
             ),
-            $this->languageService->sL(
+            $this->getLanguageService()->sL(
                 'LLL:EXT:cachemgm/Resources/Private/BackendModule/Language/locallang.xlf:bemodule.flash.flush.header'
             ),
-            \TYPO3\CMS\Core\Type\ContextualFeedbackSeverity::OK,
+            ContextualFeedbackSeverity::OK,
             true
         );
     }
 
-    private function getNoCacheFoundMessage(): object
+    private function getNoCacheFoundMessage(): FlashMessage
     {
-        return GeneralUtility::makeInstance(
-            FlashMessage::class,
-            $this->languageService->sL(
+        return new FlashMessage(
+            $this->getLanguageService()->sL(
                 'LLL:EXT:cachemgm/Resources/Private/BackendModule/Language/locallang.xlf:bemodule.flash.detailed.error'
             ),
             '',
-            \TYPO3\CMS\Core\Type\ContextualFeedbackSeverity::NOTICE,
+            ContextualFeedbackSeverity::NOTICE,
             true
         );
     }
 
     private function showFlashMessage(FlashMessage $message): void
     {
-        $messageQueue = GeneralUtility::makeInstance(FlashMessageService::class)->getMessageQueueByIdentifier();
-        $messageQueue->enqueue($message);
+        $this->flashMessageService->getMessageQueueByIdentifier()->enqueue($message);
     }
 }
