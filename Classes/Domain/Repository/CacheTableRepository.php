@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Aoe\Cachemgm\Domain\Repository;
 
 use TYPO3\CMS\Core\Database\ConnectionPool;
-use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /***************************************************************
  *  Copyright notice
@@ -33,9 +32,13 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 class CacheTableRepository
 {
+    public function __construct(
+        private readonly ConnectionPool $connectionPool,
+    ) {}
+
     public function countRowsInTable(string $table): int
     {
-        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable($table);
+        $queryBuilder = $this->connectionPool->getQueryBuilderForTable($table);
         return $queryBuilder
             ->count('*')
             ->from($table)
